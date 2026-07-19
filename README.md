@@ -1,8 +1,8 @@
-# BESTTHING — Nightlight Game Account Lookup (Web)
+# BESTTHING — Nightlight Game Account Lookup (Node.js)
 
-A Flask web interface wrapping the Nightlight API. It lists games (with Steam
-header images) and fetches Steam login credentials per game, using Playwright to
-bypass Cloudflare the same way the original CLI script did.
+A Node.js + Express web app wrapping the Nightlight API. It lists games (with
+Steam header images) and fetches Steam login credentials per game, using
+Playwright to bypass Cloudflare the same way the original script did.
 
 ## Features
 - Searchable, image-rich game grid
@@ -12,17 +12,17 @@ bypass Cloudflare the same way the original CLI script did.
 
 ## Run locally
 ```bash
-pip install -r requirements.txt
-python -m playwright install chromium
-python app.py
+npm install
+npx playwright install chromium
+node server.js
 ```
-Open http://localhost:5000
+Open http://localhost:3000
 
-## Deploy (Render — Web Service)
-- Build command: `pip install -r requirements.txt && python -m playwright install chromium`
-- Start command: `python app.py`
-- The app listens on `0.0.0.0:$PORT` (set `PORT` env on Render).
+## Deploy (Render — Web Service / Blueprint)
+- Build command: `npm install && npx playwright install chromium`
+- Start command: `node server.js`
+- Listens on `0.0.0.0:$PORT` (Render sets PORT automatically).
 
 ## Notes
-- API key and base URL are defined at the top of `app.py`.
+- API key and base URL are defined at the top of `server.js`.
 - Username returned is the Steam login; no email is returned.

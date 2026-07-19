@@ -1,0 +1,16 @@
+{
+  "name": "bestthing",
+  "version": "1.0.0",
+  "description": "Nightlight game account lookup web app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.49.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

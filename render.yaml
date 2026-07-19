@@ -1,17 +1,12 @@
 services:
   - type: web
     name: bestthing
-    runtime: python
+    runtime: node
     plan: free
     region: oregon
     branch: main
-    buildCommand: pip install -r requirements.txt && python -m playwright install chromium
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.9"
-      - key: PORT
-        value: 10000
-    startCommand: python app.py
+    buildCommand: npm install && npx playwright install chromium
+    startCommand: node server.js
     envVars:
       - key: PORT
-        value: 10000
+        value: 3000
