@@ -46,7 +46,11 @@ let gamesCache = { data: null, ts: 0 };
 async function apiGetBrowser(path, params) {
   const qs = new URLSearchParams(params).toString();
   const url = `${BASE}/${path}?${qs}`;
-  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  const browser = await chromium.launch({
+    headless: true,
+    channel: 'chromium',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  });
   try {
     const ctx = await browser.newContext({ userAgent: USER_AGENT });
     const page = await ctx.newPage();
