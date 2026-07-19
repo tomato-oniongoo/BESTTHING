@@ -208,8 +208,8 @@ async function fetchCreds(id, name) {
     const r = await fetch('/api/credentials?gameid=' + encodeURIComponent(id));
     const d = await r.json();
     if (d.error) { body.innerHTML = '<span class="err">' + d.error + '</span>'; return; }
-    const user = d.Username || d.username || '—';
-    const pw = d.Password || d.password || '—';
+    const user = d.username || '—';
+    const pw = d.password || '—';
     body.innerHTML =
       '<div class="field"><label>Game</label><div class="val">' + name + '</div></div>' +
       '<div class="field"><label>Username (Steam login)</label><div class="val ok">' + user + '</div></div>' +
