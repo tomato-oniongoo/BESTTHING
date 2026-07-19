@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+import json
+import threading
+import urllib.parse
+from playwright.sync_api import sync_playwright
+
+from flask import Flask, jsonify, render_template_string, request
+
+API_KEY = "NL-5bbb5ce2-bf0c"
+BASE = "https://onajlikezz.xyz/api"
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+
+app = Flask(__name__)
+
+_games_cache = {"data": None, "ts": 0}
+_cache_lock = threading.Lock()
+CACHE_TTL = 300
+
+
+def api_get_browser(path, params):
+    url = f"{BASE}/{path}?" + "&".join(
+        f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items()
+    )
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        ctx = browser.new_context(user_agent=USER_AGENT)
+        page = ctx.new_page()
+        page.goto(url, timeout=60000, wait_until="domcontentloaded")
+        page.wait_for_timeout(8000)
+        body = page.inner_text("body")
+        browser.close()
+        return body
+
+
+def get_games(force=False):
+    import time
+    now = time.time()
+    with _cache_lock:
+        if not force and _games_cache["data"] and (now - _games_cache["ts"]) < CACHE_TTL:
+            return _games_cache["data"]
+    raw = api_get_browser("gamelist.php", {"key": API_KEY})
+    games = json.loads(raw)
+    games = [g for g in games if g.get("id") and g.get("name")]
+    games.sort(key=lambda g: g.get("name", "").lower())
+    with _cache_lock:
+        _games_cache["data"] = games
+        _games_cache["ts"] = now
+    return games
+
+
+def get_credentials(game_id):
+    raw = api_get_browser("sentgame.php", {"gameid": game_id, "key": API_KEY})
+    return json.loads(raw)
+
+
+PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nightlight Lookup</title>
+<style>
+  :root{
+    --bg:#0b0d14; --bg2:#11141f; --card:#171b29; --card2:#1e2335;
+    --acc:#8b5cff; --acc2:#5cc8ff; --ok:#3ddc97; --txt:#eef1f8; --mut:#9aa3bd;
+    --line:#262c40; --shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Inter",system-ui,Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,rgba(139,92,255,.18),transparent 60%),
+               radial-gradient(900px 500px at -10% 10%,rgba(92,200,255,.12),transparent 55%),
+               var(--bg);
+    color:var(--txt); min-height:100vh;
+  }
+  header{
+    padding:40px 20px 28px; text-align:center;
+    background:linear-gradient(180deg,rgba(139,92,255,.10),transparent);
+    border-bottom:1px solid var(--line);
+  }
+  header .badge{
+    display:inline-block; font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--acc2); background:rgba(92,200,255,.1); border:1px solid rgba(92,200,255,.25);
+    padding:5px 12px; border-radius:999px; margin-bottom:14px;
+  }
+  header h1{
+    margin:0; font-size:40px; font-weight:800; letter-spacing:-.02em;
+    background:linear-gradient(90deg,#fff,#b9a8ff 55%,#7fd6ff);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header p{margin:10px 0 0; color:var(--mut); font-size:15px}
+  .wrap{max-width:1080px; margin:0 auto; padding:26px 20px 60px}
+  .controls{
+    display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; align-items:center;
+  }
+  .search-box{position:relative; flex:1; min-width:240px}
+  .search-box svg{position:absolute; left:14px; top:50%; transform:translateY(-50%); opacity:.5}
+  input[type=text]{
+    width:100%; font-size:15px; padding:13px 14px 13px 42px; border-radius:12px;
+    border:1px solid var(--line); background:var(--bg2); color:var(--txt); outline:none;
+    transition:.15s;
+  }
+  input[type=text]:focus{border-color:var(--acc); box-shadow:0 0 0 3px rgba(139,92,255,.18)}
+  button{
+    font-size:14px; font-weight:600; padding:13px 18px; border-radius:12px; border:none;
+    cursor:pointer; color:#fff; background:linear-gradient(135deg,var(--acc),#6a40ff);
+    transition:.15s; white-space:nowrap;
+  }
+  button:hover{transform:translateY(-1px); box-shadow:0 8px 20px rgba(139,92,255,.35)}
+  button.ghost{background:var(--card2); color:var(--txt); border:1px solid var(--line)}
+  button.ghost:hover{box-shadow:none; border-color:var(--acc)}
+  .status{color:var(--mut); margin:6px 2px 18px; font-size:14px; display:flex; align-items:center; gap:8px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
+  .card{
+    position:relative; background:linear-gradient(180deg,var(--card),var(--bg2));
+    border:1px solid var(--line); border-radius:16px; padding:18px; cursor:pointer;
+    transition:.18s; overflow:hidden;
+  }
+  .card:before{
+    content:""; position:absolute; inset:0; border-radius:16px; padding:1px;
+    background:linear-gradient(135deg,rgba(139,92,255,.0),rgba(92,200,255,.0));
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; opacity:0; transition:.18s;
+  }
+  .card:hover{transform:translateY(-4px); box-shadow:var(--shadow); border-color:transparent}
+  .card:hover:before{opacity:1; background:linear-gradient(135deg,var(--acc),var(--acc2))}
+  .card{padding:0; overflow:hidden}
+  .card .thumb{width:100%; aspect-ratio:460/215; object-fit:cover; display:block; background:var(--card2)}
+  .card .body{padding:14px 16px 16px}
+  .card .name{font-weight:700; font-size:16px; line-height:1.3}
+  .card .id{font-size:12px; color:var(--mut); margin-top:6px}
+  .card .go{position:absolute; right:16px; top:16px; font-size:12px; color:var(--acc2); opacity:0; transition:.18s}
+  .card:hover .go{opacity:1}
+  .status.empty{justify-content:center; padding:40px 0}
+
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(5,7,12,.72); backdrop-filter:blur(6px);
+    display:none; align-items:center; justify-content:center; padding:20px; z-index:50;
+  }
+  .modal-bg.show{display:flex; animation:fade .2s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .modal{
+    background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line);
+    border-radius:20px; padding:26px; max-width:440px; width:100%; box-shadow:var(--shadow);
+    animation:pop .22s cubic-bezier(.2,.9,.3,1.3);
+  }
+  @keyframes pop{from{transform:scale(.94);opacity:0}to{transform:scale(1);opacity:1}}
+  .modal h3{margin:0 0 4px; font-size:22px; font-weight:800}
+  .modal .sub{color:var(--mut); font-size:13px; margin-bottom:18px}
+  .field{
+    background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:13px 14px; margin:10px 0;
+  }
+  .field label{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin-bottom:6px}
+  .field .val{font-family:"JetBrains Mono",ui-monospace,monospace; font-size:16px; word-break:break-all; color:var(--txt)}
+  .field .val.ok{color:var(--ok)}
+  .row{display:flex; gap:10px; margin-top:18px}
+  .row button{flex:1}
+  .hint{font-size:12px; color:var(--mut); margin-top:14px; text-align:center}
+  .err{color:#ff7a7a}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:rot .7s linear infinite;vertical-align:-3px}
+  @keyframes rot{to{transform:rotate(360deg)}}
+  @media(max-width:520px){header h1{font-size:30px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="badge">Nightlight API</div>
+  <h1>Game Account Lookup</h1>
+  <p>Search the catalog and pull Steam login credentials instantly.</p>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <div class="search-box">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4-4"></path>
+      </svg>
+      <input id="search" type="text" placeholder="Search games by name..." oninput="render()">
+    </div>
+    <button class="ghost" onclick="loadGames(true)">↻ Refresh</button>
+  </div>
+  <div id="status" class="status"><span class="spin"></span> Loading games...</div>
+  <div id="grid" class="grid"></div>
+</div>
+
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="mTitle">Credentials</h3>
+    <div class="sub" id="mSub"></div>
+    <div id="mBody"></div>
+    <div class="row">
+      <button id="btnAnother" onclick="getAnother()">⟳ Get Another</button>
+      <button class="ghost" onclick="closeModal()">Close</button>
+    </div>
+    <div class="hint">Username is the Steam login · no email is returned</div>
+  </div>
+</div>
+
+<script>
+let GAMES = [];
+let currentId = null, currentName = null;
+
+function imgFail(el){ el.style.display = 'none'; }
+
+async function loadGames(force) {
+  const s = document.getElementById('status');
+  s.innerHTML = '<span class="spin"></span> Loading games...';
+  try {
+    const r = await fetch('/api/games' + (force ? '?force=1' : ''));
+    const data = await r.json();
+    if (data.error) { s.innerHTML = '<span class="err">' + data.error + '</span>'; return; }
+    GAMES = data.games || [];
+    s.innerHTML = '<span class="dot"></span> ' + GAMES.length + ' games available';
+    render();
+  } catch (e) {
+    s.innerHTML = '<span class="err">Failed to load: ' + e + '</span>';
+  }
+}
+
+function render() {
+  const term = document.getElementById('search').value.toLowerCase();
+  const grid = document.getElementById('grid');
+  const list = GAMES.filter(g => (g.name || '').toLowerCase().includes(term));
+  grid.innerHTML = '';
+  if (!list.length) {
+    grid.innerHTML = '<div class="status empty">No games match your search.</div>';
+    return;
+  }
+  list.forEach(g => {
+    const d = document.createElement('div');
+    d.className = 'card';
+    const img = g.image
+      ? '<img class="thumb" loading="lazy" src="' + g.image + '" alt="' + (g.name||'').replace(/"/g,'') + '" onerror="imgFail(this)">'
+      : '';
+    d.innerHTML =
+      img +
+      '<div class="body">' +
+        '<div class="name">' + g.name + '</div>' +
+        '<div class="id">ID: ' + g.id + '</div>' +
+        '<div class="go">Open →</div>' +
+      '</div>';
+    d.onclick = () => openGame(g.id, g.name);
+    grid.appendChild(d);
+  });
+}
+
+async function openGame(id, name) {
+  currentId = id; currentName = name;
+  const bg = document.getElementById('modalBg');
+  document.getElementById('mTitle').textContent = name;
+  document.getElementById('mSub').textContent = 'ID: ' + id;
+  document.getElementById('mBody').innerHTML = '<div class="status"><span class="spin"></span> Fetching account...</div>';
+  bg.classList.add('show');
+  await fetchCreds(id, name);
+}
+
+async function getAnother() {
+  if (!currentId) return;
+  const body = document.getElementById('mBody');
+  body.innerHTML = '<div class="status"><span class="spin"></span> Fetching another account...</div>';
+  document.getElementById('btnAnother').disabled = true;
+  await fetchCreds(currentId, currentName);
+  document.getElementById('btnAnother').disabled = false;
+}
+
+async function fetchCreds(id, name) {
+  const body = document.getElementById('mBody');
+  try {
+    const r = await fetch('/api/credentials?gameid=' + encodeURIComponent(id));
+    const d = await r.json();
+    if (d.error) { body.innerHTML = '<span class="err">' + d.error + '</span>'; return; }
+    const user = d.Username || d.username || '—';
+    const pw = d.Password || d.password || '—';
+    body.innerHTML =
+      '<div class="field"><label>Game</label><div class="val">' + name + '</div></div>' +
+      '<div class="field"><label>Username (Steam login)</label><div class="val ok">' + user + '</div></div>' +
+      '<div class="field"><label>Password</label><div class="val">' + pw + '</div></div>';
+  } catch (e) {
+    body.innerHTML = '<span class="err">Failed: ' + e + '</span>';
+  }
+}
+
+function closeModal() { document.getElementById('modalBg').classList.remove('show'); }
+document.getElementById('modalBg').onclick = (e) => { if (e.target.id === 'modalBg') closeModal(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+loadGames();
+</script>
+</body>
+</html>
+"""
+
+
+@app.route("/")
+def index():
+    return render_template_string(PAGE)
+
+
+@app.route("/api/games")
+def api_games():
+    try:
+        games = get_games(force=request.args.get("force") == "1")
+        return jsonify({"games": games})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/credentials")
+def api_credentials():
+    gid = request.args.get("gameid")
+    if not gid:
+        return jsonify({"error": "gameid required"}), 400
+    try:
+        creds = get_credentials(gid)
+        return jsonify(creds)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
