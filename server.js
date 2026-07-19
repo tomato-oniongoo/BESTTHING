@@ -89,6 +89,7 @@ app.get('/api/games', async (req, res) => {
     const games = await getGames(req.query.force === '1');
     res.json({ games });
   } catch (e) {
+    console.error('[games] error:', e);
     res.status(500).json({ error: 'Service unavailable.' });
   }
 });
@@ -102,6 +103,7 @@ app.get('/api/credentials', async (req, res) => {
     const creds = await getCredentials(gid);
     res.json(creds);
   } catch (e) {
+    console.error('[credentials] error:', e);
     res.status(500).json({ error: 'Service unavailable.' });
   }
 });
