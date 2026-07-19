@@ -10,7 +10,5 @@ services:
     envVars:
       - key: PORT
         value: 3000
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: "0"
       - key: API_KEY
         sync: false

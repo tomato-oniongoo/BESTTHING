@@ -1,15 +1,13 @@
 {
   "name": "bestthing",
   "version": "1.0.0",
-  "description": "Nightlight game account lookup web app",
+  "description": "Game Vault - game account lookup web app",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "playwright install chromium"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "playwright": "^1.49.1"
+    "express": "^4.19.2"
   },
   "engines": {
     "node": ">=18"
