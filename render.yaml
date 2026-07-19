@@ -5,10 +5,12 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm install && npx playwright install --with-deps chromium && npx playwright install chromium-headless-shell
+    buildCommand: npm install
     startCommand: node server.js
     envVars:
       - key: PORT
         value: 3000
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "0"
       - key: API_KEY
         sync: false

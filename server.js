@@ -48,7 +48,7 @@ async function apiGetBrowser(path, params) {
   const url = `${BASE}/${path}?${qs}`;
   const browser = await chromium.launch({
     headless: true,
-    channel: 'chromium',
+    executablePath: process.env.PW_EXEC || undefined,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   });
   try {
