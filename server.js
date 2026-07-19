@@ -53,15 +53,26 @@ async function apiGet(path, params) {
 
 async function getGames(force) {
   const now = Date.now();
-  if (!force && gamesCache.data && (now - gamesCache.ts) < CACHE_TTL) return gamesCache.data;
+  if (!force && gamesCache.data && (now - gamesCache.ts) < CACHE_TTL) {
+    return shuffle(gamesCache.data);
+  }
   const raw = await apiGet('gamelist.php', { key: API_KEY });
   let games = JSON.parse(raw);
   games = games
     .filter(g => g.id && g.name)
-    .map(g => ({ id: String(g.id), name: String(g.name), image: g.image ? String(g.image) : '' }))
-    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    .map(g => ({ id: String(g.id), name: String(g.name), image: g.image ? String(g.image) : '' }));
   gamesCache = { data: games, ts: now };
-  return games;
+  return shuffle(games);
+}
+
+// Fisher-Yates shuffle on a copy — fresh random order on every request.
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 async function getCredentials(gameId) {
