@@ -5,8 +5,12 @@ services:
     plan: free
     region: oregon
     branch: main
-    pythonVersion: "3.11"
     buildCommand: pip install -r requirements.txt && python -m playwright install chromium
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PORT
+        value: 10000
     startCommand: python app.py
     envVars:
       - key: PORT
